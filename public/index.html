@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wiremonitor</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="header">
+    <span class="brand">wiremonitor</span>
+    <span id="status-pill" class="status-pill status-checking">checking…</span>
+    <nav class="nav">
+      <button type="button" class="nav-btn active" data-view="connections">Connections</button>
+      <button type="button" class="nav-btn" data-view="analyses">Analyses</button>
+      <button type="button" class="nav-btn" data-view="stats">Stats</button>
+    </nav>
+  </header>
+
+  <main class="main">
+
+    <section id="view-connections" class="view active">
+      <div class="filter-bar">
+        <select id="filter-protocol" class="filter-select">
+          <option value="">All protocols</option>
+          <option value="TCP">TCP</option>
+          <option value="UDP">UDP</option>
+        </select>
+        <select id="filter-direction" class="filter-select">
+          <option value="">All directions</option>
+          <option value="outbound">outbound</option>
+          <option value="inbound">inbound</option>
+          <option value="local">local</option>
+        </select>
+        <input id="filter-process" class="filter-input" type="text" placeholder="Process…" autocomplete="off">
+        <input id="filter-country" class="filter-input" type="text" placeholder="Country…" autocomplete="off" maxlength="2">
+        <span id="conn-count" class="filter-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Proto</th>
+              <th>Source</th>
+              <th>Destination</th>
+              <th>Dir</th>
+              <th>State</th>
+              <th>Process</th>
+              <th>CC</th>
+              <th>Last Seen</th>
+            </tr>
+          </thead>
+          <tbody id="connections-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-analyses" class="view">
+      <div id="analyses-list" class="analyses-list"></div>
+    </section>
+
+    <section id="view-stats" class="view">
+      <div id="stats-tiles" class="stats-tiles"></div>
+      <div class="stats-grid">
+        <div class="stats-panel">
+          <h3 class="stats-panel-title">Protocol</h3>
+          <div id="chart-protocol" class="bar-chart"></div>
+        </div>
+        <div class="stats-panel">
+          <h3 class="stats-panel-title">Direction</h3>
+          <div id="chart-direction" class="bar-chart"></div>
+        </div>
+      </div>
+      <div class="stats-panel stats-panel-full">
+        <h3 class="stats-panel-title">Top Destinations</h3>
+        <div id="chart-destinations" class="bar-chart"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <aside id="detail-panel" class="detail-panel" aria-hidden="true">
+    <div class="detail-header">
+      <span class="detail-title">Connection Detail</span>
+      <button type="button" id="detail-close" class="detail-close" aria-label="Close">✕</button>
+    </div>
+    <div id="detail-body" class="detail-body"></div>
+  </aside>
+  <div id="detail-overlay" class="detail-overlay"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
