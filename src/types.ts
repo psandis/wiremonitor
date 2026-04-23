@@ -50,6 +50,8 @@ export interface DbStats {
   oldestConnection: number | null;
   dbSizeBytes: number;
   topDestinations: Array<{ dst_ip: string; dst_hostname: string | null; count: number }>;
+  topProcesses: Array<{ process_name: string; count: number }>;
+  topCountries: Array<{ country_code: string; count: number }>;
   byProtocol: Array<{ protocol: string; count: number }>;
   byDirection: Array<{ direction: string; count: number }>;
 }

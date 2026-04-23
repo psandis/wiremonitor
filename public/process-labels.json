@@ -1,0 +1,54 @@
+{
+  "Code H": {
+    "name": "VS Code Helper",
+    "description": "Visual Studio Code background renderer process (Electron)"
+  },
+  "Code Helper": {
+    "name": "VS Code Helper",
+    "description": "Visual Studio Code background renderer process (Electron)"
+  },
+  "Code Helper (R": {
+    "name": "VS Code Helper (Renderer)",
+    "description": "Visual Studio Code renderer process (Electron)"
+  },
+  "Google": {
+    "name": "Google Chrome",
+    "description": "Google Chrome browser"
+  },
+  "Google Chrome": {
+    "name": "Google Chrome",
+    "description": "Google Chrome browser"
+  },
+  "node": {
+    "name": "Node.js runtime",
+    "description": "Node.js JavaScript runtime — exact application unknown, could be wiremonitor, Vite, npm, or any Node.js tool"
+  },
+  "Slack": {
+    "name": "Slack",
+    "description": "Slack desktop application"
+  },
+  "Electron": {
+    "name": "Electron app",
+    "description": "Electron-based desktop application"
+  },
+  "Safari": {
+    "name": "Safari",
+    "description": "Apple Safari browser"
+  },
+  "Mail": {
+    "name": "Apple Mail",
+    "description": "Apple Mail email client"
+  },
+  "com.apple.WebKit": {
+    "name": "WebKit (Safari)",
+    "description": "Apple WebKit rendering engine"
+  },
+  "curl": {
+    "name": "curl",
+    "description": "Command-line HTTP client"
+  },
+  "ssh": {
+    "name": "SSH",
+    "description": "Secure Shell client"
+  }
+}

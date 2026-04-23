@@ -10,11 +10,14 @@ wiremonitor serves a local HTTP dashboard and streams new connections to the bro
 
 - serves a local web dashboard at `http://localhost:PORT`
 - streams live connections via Server-Sent Events as new records arrive
-- displays connection table with filtering by protocol, direction, process, and country
+- displays connection table with filtering by protocol, direction, process, country, and destination IP
 - shows connection detail on click with full metadata
-- lists AI analyses with risk level, summary, and flagged connections
-- displays database and session statistics with visual breakdowns
+- lists AI analyses with risk level, summary, and flagged connections grouped by process and destination
+- identifies known processes by name (VS Code, Chrome, Slack, node, etc.)
+- displays database and session statistics with visual breakdowns including top processes and top countries
 - shows daemon status (running / stopped) updated live
+- live SSE status pill shows whether the browser stream is connected
+- dark and light theme toggle, persisted across sessions
 - opens the browser automatically on start
 
 ## Requirements
@@ -76,7 +79,13 @@ Opens in your default browser. Updates automatically as new connections arrive. 
 
 ### Header
 
-A fixed header shows the daemon status pill — green and pulsing when capturing, red when stopped and updated live every 5 seconds. Navigation links switch between three views: Connections, Analyses, and Stats.
+A fixed header shows:
+
+- **WM logo** — brand mark on the left
+- **Status pill** — green and pulsing when the capture daemon is running, red when stopped, polled every 5 seconds
+- **Live pill** — shows the state of the SSE stream: `connecting`, `connected` (green pulse), or `offline` (red). Flashes briefly on each new event received
+- **Theme toggle** — switches between dark and light mode, persisted to localStorage
+- **Navigation** — Connections / Analyses / Stats
 
 ### Connections
 
@@ -100,18 +109,31 @@ Filter bar above the table:
 |--------|-------------|
 | Protocol | TCP or UDP |
 | Direction | outbound / inbound / local |
-| Process | Substring match on process name |
+| Process | Exact match on process name |
 | Country | Two-letter country code |
+| IP chip | Active when clicking a destination in Analyses — shows destination IP and clears on ✕ |
+
+Direction is shown as an arrow badge: `→` outbound, `←` inbound, `⇄` local.
 
 New rows animate in at the top as the SSE stream delivers them. Clicking a row opens a detail panel that slides in from the right showing the full connection record.
 
 ### Analyses
 
-A scrollable list of analysis cards. Each card shows a risk badge (low / medium / high, color-coded), timestamp, AI provider and model, connection count, and a plain-language summary. Flagged connections are listed as clickable links that open the connection detail panel.
+A scrollable list of analysis cards. Each card shows a risk badge (low / medium / high, color-coded), timestamp, AI provider and model, connection count, and a plain-language summary. Destination IPs mentioned in the summary text are clickable — clicking one filters the Connections view to that IP.
+
+Flagged connections are grouped by process, then by destination. Each process entry shows the raw process name and, where known, a resolved full name in parentheses (e.g. `Code H (VS Code Helper)`). Each destination row shows the hostname or IP, port with a protocol label (e.g. `443 HTTPS`), and a connection count badge. Clicking a destination with a single connection opens the detail panel; clicking one with multiple connections filters the Connections view by that destination IP.
+
+Process names are resolved via `public/process-labels.json` — a plain JSON file you can extend without rebuilding.
 
 ### Stats
 
-Stat tiles show key numbers: total connections, analyses, sessions, oldest record, and database size. Two CSS bar charts show protocol and direction distribution. A ranked top-destinations list shows the ten most-seen destination IPs or hostnames with connection counts.
+Stat tiles show key numbers: total connections, analyses, sessions, oldest record, and database size. CSS bar charts show:
+
+- Protocol distribution (TCP / UDP)
+- Direction distribution (outbound / inbound / local)
+- Top 10 processes by connection count
+- Top 10 countries by connection count
+- Top 10 destinations by connection count
 
 ## Configuration
 
@@ -254,7 +276,8 @@ wiremonitor/
 ├── public/
 │   ├── index.html             dashboard shell
 │   ├── app.js                 dashboard logic (vanilla JS)
-│   └── style.css              styles
+│   ├── style.css              styles
+│   └── process-labels.json    process name resolution map (extend without rebuilding)
 ├── tests/
 │   ├── config.test.ts
 │   ├── db.test.ts

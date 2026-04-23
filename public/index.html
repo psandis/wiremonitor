@@ -8,8 +8,16 @@
 </head>
 <body>
   <header class="header">
-    <span class="brand">wiremonitor</span>
+    <div class="brand">
+      <svg class="brand-logo" width="40" height="26" viewBox="0 0 40 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 0.5H34L39.5 6V20L34 25.5H6L0.5 20V6L6 0.5Z" stroke="#4b8cf7" stroke-width="1.1" fill="rgba(75,140,247,0.07)"/>
+        <text x="20" y="18" text-anchor="middle" font-family="'SF Mono','Fira Code',ui-monospace,monospace" font-size="11.5" font-weight="800" letter-spacing="1.5" fill="#4b8cf7">WM</text>
+      </svg>
+      <span class="brand-name">wiremonitor</span>
+    </div>
     <span id="status-pill" class="status-pill status-checking">checking…</span>
+    <span id="live-pill" class="live-pill live-connecting">connecting</span>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
     <nav class="nav">
       <button type="button" class="nav-btn active" data-view="connections">Connections</button>
       <button type="button" class="nav-btn" data-view="analyses">Analyses</button>
@@ -34,6 +42,10 @@
         </select>
         <input id="filter-process" class="filter-input" type="text" placeholder="Process…" autocomplete="off">
         <input id="filter-country" class="filter-input" type="text" placeholder="Country…" autocomplete="off" maxlength="2">
+        <div id="filter-ip-chip" class="filter-chip" style="display:none">
+          <span id="filter-ip-label"></span>
+          <button type="button" id="filter-ip-clear" class="filter-chip-clear" aria-label="Clear IP filter">✕</button>
+        </div>
         <span id="conn-count" class="filter-count"></span>
       </div>
       <div class="table-wrap">
@@ -70,6 +82,14 @@
         <div class="stats-panel">
           <h3 class="stats-panel-title">Direction</h3>
           <div id="chart-direction" class="bar-chart"></div>
+        </div>
+        <div class="stats-panel">
+          <h3 class="stats-panel-title">Top Processes</h3>
+          <div id="chart-processes" class="bar-chart"></div>
+        </div>
+        <div class="stats-panel">
+          <h3 class="stats-panel-title">Top Countries</h3>
+          <div id="chart-countries" class="bar-chart"></div>
         </div>
       </div>
       <div class="stats-panel stats-panel-full">

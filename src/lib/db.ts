@@ -138,6 +138,28 @@ export function getDbStats(dbPath: string): DbStats {
     )
     .all() as DbStats["byDirection"];
 
+  const topProcesses = d
+    .prepare(
+      `SELECT process_name, COUNT(*) as count
+       FROM connections
+       WHERE process_name IS NOT NULL
+       GROUP BY process_name
+       ORDER BY count DESC
+       LIMIT 10`,
+    )
+    .all() as DbStats["topProcesses"];
+
+  const topCountries = d
+    .prepare(
+      `SELECT country_code, COUNT(*) as count
+       FROM connections
+       WHERE country_code IS NOT NULL
+       GROUP BY country_code
+       ORDER BY count DESC
+       LIMIT 10`,
+    )
+    .all() as DbStats["topCountries"];
+
   let dbSizeBytes = 0;
   try {
     dbSizeBytes = statSync(dbPath).size;
@@ -152,6 +174,8 @@ export function getDbStats(dbPath: string): DbStats {
     oldestConnection: oldest.ts,
     dbSizeBytes,
     topDestinations,
+    topProcesses,
+    topCountries,
     byProtocol,
     byDirection,
   };

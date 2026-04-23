@@ -1,23 +1,30 @@
 // ── State ────────────────────────────────────────────────────────────────
 const state = {
   connections: [],
-  filters: { protocol: "", direction: "", process: "", country: "" },
+  filters: { protocol: "", direction: "", process: "", country: "", dst_ip: "" },
   activeView: "connections",
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const el = {
+  themeToggle: document.getElementById("theme-toggle"),
   statusPill: document.getElementById("status-pill"),
+  livePill: document.getElementById("live-pill"),
   connBody: document.getElementById("connections-body"),
   connCount: document.getElementById("conn-count"),
   filterProtocol: document.getElementById("filter-protocol"),
   filterDirection: document.getElementById("filter-direction"),
   filterProcess: document.getElementById("filter-process"),
   filterCountry: document.getElementById("filter-country"),
+  filterIpChip: document.getElementById("filter-ip-chip"),
+  filterIpLabel: document.getElementById("filter-ip-label"),
+  filterIpClear: document.getElementById("filter-ip-clear"),
   analysesList: document.getElementById("analyses-list"),
   statsTiles: document.getElementById("stats-tiles"),
   chartProtocol: document.getElementById("chart-protocol"),
   chartDirection: document.getElementById("chart-direction"),
+  chartProcesses: document.getElementById("chart-processes"),
+  chartCountries: document.getElementById("chart-countries"),
   chartDest: document.getElementById("chart-destinations"),
   detailPanel: document.getElementById("detail-panel"),
   detailOverlay: document.getElementById("detail-overlay"),
@@ -80,6 +87,18 @@ async function apiFetch(path) {
   return res.json();
 }
 
+let processLabels = null;
+async function getProcessLabels() {
+  if (processLabels) return processLabels;
+  try {
+    const res = await fetch("/process-labels.json");
+    processLabels = res.ok ? await res.json() : {};
+  } catch {
+    processLabels = {};
+  }
+  return processLabels;
+}
+
 // ── Status ───────────────────────────────────────────────────────────────
 async function refreshStatus() {
   try {
@@ -95,18 +114,41 @@ async function refreshStatus() {
 
 // ── Connections ──────────────────────────────────────────────────────────
 function applyFilters(list) {
-  const { protocol, direction, process: proc, country } = state.filters;
+  const { protocol, direction, process: proc, country, dst_ip } = state.filters;
   return list.filter((c) => {
     if (protocol && c.protocol !== protocol) return false;
     if (direction && c.direction !== direction) return false;
     if (proc && !(c.process_name ?? "").toLowerCase().includes(proc.toLowerCase())) return false;
     if (country && (c.country_code ?? "").toUpperCase() !== country.toUpperCase()) return false;
+    if (dst_ip && c.dst_ip !== dst_ip) return false;
     return true;
   });
 }
 
+function linkifySummary(text) {
+  const IP_RE = /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g;
+  return esc(text).replace(IP_RE, (_, ip) =>
+    `<span class="summary-ip" data-ip="${ip}">${ip}</span>`,
+  );
+}
+
+function filterByIp(ip) {
+  state.filters.dst_ip = ip;
+  el.filterIpLabel.textContent = `ip: ${ip}`;
+  el.filterIpChip.style.display = "inline-flex";
+  switchView("connections");
+}
+
+function clearIpFilter() {
+  state.filters.dst_ip = "";
+  el.filterIpChip.style.display = "none";
+  el.filterIpLabel.textContent = "";
+  loadConnections();
+}
+
+const DIR_LABEL = { outbound: "↑ out", inbound: "↓ in", local: "⟷ local" };
 function dirBadge(dir) {
-  return `<span class="dir-badge dir-${esc(dir)}">${esc(dir)}</span>`;
+  return `<span class="dir-badge dir-${esc(dir)}">${DIR_LABEL[dir] ?? esc(dir)}</span>`;
 }
 
 function renderConnectionRow(conn, animate = false) {
@@ -145,7 +187,9 @@ function renderConnections() {
 
 async function loadConnections() {
   try {
-    const data = await apiFetch("/api/connections?limit=200");
+    const params = new URLSearchParams({ limit: "200" });
+    if (state.filters.dst_ip) params.set("dst_ip", state.filters.dst_ip);
+    const data = await apiFetch(`/api/connections?${params}`);
     state.connections = data;
     renderConnections();
   } catch {
@@ -154,12 +198,24 @@ async function loadConnections() {
 }
 
 // ── SSE ──────────────────────────────────────────────────────────────────
+function setLivePill(state) {
+  el.livePill.className = `live-pill live-${state}`;
+  el.livePill.textContent = state === "connected" ? "live" : state === "offline" ? "offline" : "connecting";
+}
+
+function flashLivePill() {
+  el.livePill.classList.remove("flash");
+  void el.livePill.offsetWidth;
+  el.livePill.classList.add("flash");
+}
+
 function initSSE() {
   const source = new EventSource("/api/events");
 
   source.addEventListener("connection", (e) => {
     const conn = JSON.parse(e.data);
     state.connections.unshift(conn);
+    flashLivePill();
 
     if (state.activeView !== "connections") return;
     const filtered = applyFilters([conn]);
@@ -171,26 +227,68 @@ function initSSE() {
   });
 
   source.addEventListener("open", () => {
+    setLivePill("connected");
     loadConnections();
+  });
+
+  source.addEventListener("error", () => {
+    setLivePill("offline");
   });
 }
 
 // ── Analyses ─────────────────────────────────────────────────────────────
-function renderAnalysisCard(a) {
+const PORT_LABELS = {
+  21: "FTP", 22: "SSH", 25: "SMTP", 53: "DNS", 80: "HTTP",
+  443: "HTTPS", 587: "SMTP", 993: "IMAPS", 8080: "HTTP", 8443: "HTTPS",
+};
+
+async function renderAnalysisCard(a) {
   let flagsHtml = "";
   try {
     const flags = JSON.parse(a.flags);
     if (Array.isArray(flags) && flags.length > 0) {
-      const items = flags
-        .map((f) => {
-          const id = typeof f === "object" ? f.id : null;
-          const label = typeof f === "object" ? (f.dst_ip ?? f.id) : f;
-          return id != null
-            ? `<span class="flag-item" data-id="${esc(id)}">#${esc(id)} ${esc(label)}</span>`
-            : `<span class="flag-item">${esc(String(f))}</span>`;
-        })
-        .join("");
-      flagsHtml = `<div class="analysis-flags">${items}</div>`;
+      const ids = flags.map((f) => (typeof f === "object" ? f.id : f));
+      const [conns, labels] = await Promise.all([
+        Promise.all(ids.map((id) => apiFetch(`/api/connections/${id}`).catch(() => null))),
+        getProcessLabels(),
+      ]);
+
+      // Group by process → destination
+      const byProcess = new Map();
+      conns.forEach((conn, i) => {
+        if (!conn) return;
+        const proc = conn.process_name ?? "unknown";
+        if (!byProcess.has(proc)) byProcess.set(proc, new Map());
+        const destKey = `${conn.dst_ip}|${conn.dst_port}`;
+        const dest = byProcess.get(proc);
+        if (!dest.has(destKey)) dest.set(destKey, { conn, id: ids[i], count: 0 });
+        dest.get(destKey).count++;
+      });
+
+      const blocks = [...byProcess.entries()].map(([proc, destinations]) => {
+        const label = labels[proc];
+        const procName = label ? `${esc(proc)} <span class="flag-proc-label">(${esc(label.name)})</span>` : esc(proc);
+        const procDesc = label?.description ? `<span class="flag-proc-desc">${esc(label.description)}</span>` : "";
+        const hasUnencrypted = [...destinations.values()].some(({ conn }) => conn.dst_port === 80);
+        const warnTag = hasUnencrypted ? `<span class="flag-warn-tag">⚠ unencrypted traffic</span>` : "";
+
+        const destRows = [...destinations.values()].map(({ conn, id, count }) => {
+          const dest = conn.dst_hostname ?? conn.dst_ip ?? "?";
+          const port = conn.dst_port;
+          const portService = PORT_LABELS[port] ?? "";
+          const portStr = port ? `${port}${portService ? ` (${portService})` : ""}` : "—";
+          const countStr = count > 1 ? `${count} connections` : "1 connection";
+          const warn = port === 80 ? " flag-dest-warn" : "";
+          return `<div class="flag-dest${warn}" data-id="${esc(id)}" data-ip="${esc(conn.dst_ip)}" data-count="${count}">${esc(dest)}<span class="flag-dest-port">${portStr}</span><span class="flag-dest-count">${countStr}</span></div>`;
+        }).join("");
+
+        return `<div class="flag-group">
+          <div class="flag-proc-header">${procName}${warnTag}${procDesc}</div>
+          <div class="flag-dest-list">${destRows}</div>
+        </div>`;
+      }).join("");
+
+      flagsHtml = `<div class="analysis-flags">${blocks}</div>`;
     }
   } catch {
     // flags not parseable — skip
@@ -203,12 +301,22 @@ function renderAnalysisCard(a) {
       <span class="risk-badge risk-${esc(a.risk_level)}">${esc(a.risk_level)}</span>
       <span class="analysis-meta">${fmtTime(a.created_at)} &nbsp;·&nbsp; ${esc(a.provider)}/${esc(a.model)} &nbsp;·&nbsp; ${a.connection_count} connections</span>
     </div>
-    <p class="analysis-summary">${esc(a.summary)}</p>
+    <p class="analysis-summary">${linkifySummary(a.summary)}</p>
     ${flagsHtml}
   `;
 
-  div.querySelectorAll(".flag-item[data-id]").forEach((item) => {
-    item.addEventListener("click", () => openDetail(Number(item.dataset.id)));
+  div.querySelectorAll(".flag-dest[data-id]").forEach((item) => {
+    item.addEventListener("click", () => {
+      if (Number(item.dataset.count) > 1) {
+        filterByIp(item.dataset.ip);
+      } else {
+        openDetail(Number(item.dataset.id));
+      }
+    });
+  });
+
+  div.querySelectorAll(".summary-ip[data-ip]").forEach((item) => {
+    item.addEventListener("click", () => filterByIp(item.dataset.ip));
   });
 
   return div;
@@ -222,7 +330,7 @@ async function loadAnalyses() {
       return;
     }
     const frag = document.createDocumentFragment();
-    for (const a of data) frag.appendChild(renderAnalysisCard(a));
+    for (const a of data) frag.appendChild(await renderAnalysisCard(a));
     el.analysesList.replaceChildren(frag);
   } catch {
     el.analysesList.innerHTML = `<div class="empty-state">Failed to load analyses.</div>`;
@@ -277,6 +385,8 @@ async function loadStats() {
 
     renderBarChart(el.chartProtocol, s.byProtocol, "protocol", "count");
     renderBarChart(el.chartDirection, s.byDirection, "direction", "count");
+    renderBarChart(el.chartProcesses, s.topProcesses, "process_name", "count");
+    renderBarChart(el.chartCountries, s.topCountries, "country_code", "count");
     renderBarChart(el.chartDest, s.topDestinations, (r) => r.dst_hostname ?? r.dst_ip, "count");
   } catch {
     el.statsTiles.innerHTML = `<div class="empty-state">Failed to load stats.</div>`;
@@ -293,18 +403,18 @@ async function openDetail(id) {
       ["Direction", c.direction],
       ["Source", `${c.src_ip}:${c.src_port ?? "?"}`],
       ["Dest IP", `${c.dst_ip}:${c.dst_port ?? "?"}`],
-      ["Hostname", c.dst_hostname ?? "—"],
-      ["Country", c.country_code ?? "—"],
-      ["State", c.state ?? "—"],
-      ["Process", c.process_name ? `${c.process_name} (PID ${c.process_pid ?? "?"})` : "—"],
+      ["Hostname", c.dst_hostname ?? null],
+      ["Country", c.country_code ?? null],
+      ["State", c.state ?? null],
+      ["Process", c.process_name ? `${c.process_name} (PID ${c.process_pid ?? "?"})` : null],
       ["Capture", c.capture_mode],
-      ["Interface", c.interface ?? "—"],
-      ["Bytes Sent", fmtBytes(c.bytes_sent)],
-      ["Bytes Recv", fmtBytes(c.bytes_recv)],
+      ["Interface", c.interface ?? null],
+      ["Bytes Sent", c.bytes_sent != null ? fmtBytes(c.bytes_sent) : null],
+      ["Bytes Recv", c.bytes_recv != null ? fmtBytes(c.bytes_recv) : null],
       ["First Seen", fmtTime(c.first_seen)],
       ["Last Seen", fmtTime(c.last_seen)],
       ["Duration", fmtDuration(c.first_seen, c.last_seen)],
-    ];
+    ].filter(([, v]) => v !== null);
 
     el.detailBody.innerHTML = rows
       .map(
@@ -384,11 +494,27 @@ el.filterCountry.addEventListener(
   }, 200),
 );
 
+el.filterIpClear.addEventListener("click", clearIpFilter);
 el.detailClose.addEventListener("click", closeDetail);
 el.detailOverlay.addEventListener("click", closeDetail);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeDetail();
+});
+
+// ── Theme ─────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  el.themeToggle.textContent = theme === "light" ? "☾" : "☀";
+  localStorage.setItem("wm-theme", theme);
+}
+
+const savedTheme = localStorage.getItem("wm-theme") ?? "dark";
+applyTheme(savedTheme);
+
+el.themeToggle.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme");
+  applyTheme(current === "light" ? "dark" : "light");
 });
 
 refreshStatus();

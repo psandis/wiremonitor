@@ -1,6 +1,6 @@
 {
   "name": "wiremonitor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Network traffic web dashboard. Local-first, real-time, no telemetry.",
   "type": "module",
   "bin": {
